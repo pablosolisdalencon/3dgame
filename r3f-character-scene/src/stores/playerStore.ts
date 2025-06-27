@@ -1,19 +1,37 @@
 import create from 'zustand';
 import * as THREE from 'three';
 
-interface PlayerState {
+export interface PlayerState {
   position: THREE.Vector3;
-  // Potentially add rotation/quaternion if needed for camera later
-  // quaternion: THREE.Quaternion;
+  health: number;
+  maxHealth: number;
+  isAttacking: boolean;
   setPosition: (position: THREE.Vector3) => void;
-  // setQuaternion: (quaternion: THREE.Quaternion) => void;
+  takeDamage: (amount: number) => void;
+  heal: (amount: number) => void;
+  setAttacking: (isAttacking: boolean) => void;
+  // Could also add states like isDead, etc.
 }
 
-export const usePlayerPositionStore = create<PlayerState>((set) => ({
-  position: new THREE.Vector3(0, 0, 0), // Initial position
-  // quaternion: new THREE.Quaternion(), // Initial rotation
+export const usePlayerStore = create<PlayerState>((set, get) => ({
+  position: new THREE.Vector3(0, 1, 0), // Initial position slightly above ground
+  health: 100,
+  maxHealth: 100,
+  isAttacking: false,
+
   setPosition: (newPosition) => set({ position: newPosition }),
-  // setQuaternion: (newQuaternion) => set({ quaternion: newQuaternion }),
+
+  takeDamage: (amount) => {
+    set((state) => ({ health: Math.max(0, state.health - amount) }));
+    // Potentially trigger other effects like game over if health <= 0
+  },
+
+  heal: (amount) => {
+    set((state) => ({ health: Math.min(state.maxHealth, state.health + amount) }));
+  },
+
+  setAttacking: (isAttacking) => set({ isAttacking }),
 }));
 
-export default usePlayerPositionStore;
+// Note: Renamed from usePlayerPositionStore to usePlayerStore for broader scope
+export default usePlayerStore;

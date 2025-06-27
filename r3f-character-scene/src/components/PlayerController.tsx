@@ -1,9 +1,9 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
-import { RigidBody, CapsuleCollider } from '@react-three-rapier';
-import type { RapierRigidBody } from '@react-three-rapier';
-import { usePlayerControls } from '../hooks/usePlayerControls';
-import { usePlayerPositionStore } from '../stores/playerStore'; // Import the store
+import { RigidBody, CapsuleCollider, CuboidCollider } from '@react-three-rapier'; // Added CuboidCollider
+import type { RapierRigidBody, Collider } from '@react-three-rapier';
+import { usePlayerControls, useControlsStore } from '../hooks/usePlayerControls'; // Import useControlsStore for resetKey
+import { usePlayerStore } from '../stores/playerStore'; // Corrected import name
 import * as THREE from 'three';
 
 const PLAYER_MOVE_SPEED = 5; // units per second
@@ -14,111 +14,155 @@ const PlayerController: React.FC = () => {
   const playerObjectRef = useRef<THREE.Group>(null); // For visual orientation
   const { camera } = useThree(); // Get the camera for potential camera-relative controls
 
-  const { forward, backward, left, right, jump } = usePlayerControls();
-  const setPlayerPosition = usePlayerPositionStore((state) => state.setPosition);
+  // Get controls state from the hook that returns the state object
+  const controls = usePlayerControls();
+  const { forward, backward, left, right, jump, attack } = controls;
 
-  // Temporary vector for calculations to avoid allocations in loop
-  const _worldDirection = new THREE.Vector3();
+  // Get setters from the stores
+  const { setPosition: setPlayerStorePosition, setAttacking: setPlayerStoreAttacking, isAttacking: playerIsAttacking } = usePlayerStore();
+  const resetControlKey = useControlsStore((state) => state.resetKey);
+
+
+  // State for managing hitbox activation and attack cooldown
+  const [isHitboxActive, setIsHitboxActive] = useState(false);
+  const attackTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const attackCooldownTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [canAttack, setCanAttack] = useState(true);
+
+  // Temporary vectors for calculations to avoid allocations in loop
   const _cameraForward = new THREE.Vector3();
   const _cameraRight = new THREE.Vector3();
   const _movement = new THREE.Vector3();
 
+  // Cleanup timeouts on unmount
+  useEffect(() => {
+    return () => {
+      if (attackTimeoutRef.current) clearTimeout(attackTimeoutRef.current);
+      if (attackCooldownTimeoutRef.current) clearTimeout(attackCooldownTimeoutRef.current);
+    };
+  }, []);
 
   useFrame((state, delta) => {
     if (!playerRigidBodyRef.current || !playerObjectRef.current) return;
 
     const rb = playerRigidBodyRef.current;
     const playerObject = playerObjectRef.current;
-    const currentPosition = rb.translation();
+    const currentPositionVec = rb.translation();
 
     // Update the Zustand store with the player's current position
-    setPlayerPosition(new THREE.Vector3(currentPosition.x, currentPosition.y, currentPosition.z));
+    setPlayerStorePosition(new THREE.Vector3(currentPositionVec.x, currentPositionVec.y, currentPositionVec.z));
 
-    // --- Camera-Relative Movement Calculation ---
-    // Get camera's forward and right vectors (on the XZ plane)
+    // --- Movement Calculation (Camera Relative) ---
     camera.getWorldDirection(_cameraForward);
     _cameraForward.y = 0; // Project onto XZ plane
     _cameraForward.normalize();
     _cameraRight.crossVectors(camera.up, _cameraForward).negate().normalize(); // camera.up is (0,1,0)
 
-    // Calculate movement direction based on camera orientation
-    _movement.set(0, 0, 0);
+    _movement.set(0, 0, 0); // Reset movement vector
     if (forward) _movement.add(_cameraForward);
     if (backward) _movement.sub(_cameraForward);
-    if (left) _movement.add(_cameraRight); // Add camera's right vector (which is left relative to camera's forward)
-    if (right) _movement.sub(_cameraRight); // Subtract camera's right vector
-
-    _movement.normalize(); // Ensure consistent speed
-
-    // --- Apply Movement ---
-    const moveDirection = new THREE.Vector3();
-    if (forward) moveDirection.z -= 1;
-    if (backward) moveDirection.z += 1;
-    if (left) moveDirection.x -= 1;
-    if (right) moveDirection.x += 1;
-
-    moveDirection.normalize(); // Ensure consistent speed in all directions
-
-    // Apply movement relative to player's current orientation (if needed, for now world-based)
-    // For camera-relative movement, this vector would be rotated by camera's Y angle.
-    // For now, let's assume world axes for simplicity.
+    if (left) _movement.add(_cameraRight);
+    if (right) _movement.sub(_cameraRight);
+    _movement.normalize();
 
     const currentVelocity = rb.linvel();
     const targetVelocity = new THREE.Vector3(
-      moveDirection.x * PLAYER_MOVE_SPEED,
-      currentVelocity.y, // Preserve Y velocity for gravity/jumping
-      moveDirection.z * PLAYER_MOVE_SPEED
+      _movement.x * PLAYER_MOVE_SPEED,
+      currentVelocity.y,
+      _movement.z * PLAYER_MOVE_SPEED
     );
-
     rb.setLinvel(targetVelocity, true);
 
-    // Handle Jump
-    // A proper jump usually involves checking if the player is grounded.
-    // For now, a simple jump implementation.
+    // --- Jump ---
     if (jump) {
-        // Check if grounded (simplified, can be improved with raycasting)
-        const origin = rb.translation();
+        const origin = currentPositionVec; // Use already fetched position
         const ray = new state.scene.userData.rapierWorld.Ray(
             { x: origin.x, y: origin.y, z: origin.z },
             { x: 0, y: -1, z: 0 }
         );
-        const hit = state.scene.userData.rapierWorld.castRay(ray, 0.6, true); // Max TOI of 0.6 (half height + bit more)
-
-        if (hit) { // If hit something below, consider grounded
+        // Cast ray slightly shorter than half player height + small buffer to avoid self-collision if origin is inside collider
+        const hit = state.scene.userData.rapierWorld.castRay(ray, 0.55, true, undefined, undefined, rb.collider(0));
+        if (hit) {
             rb.applyImpulse({ x: 0, y: PLAYER_JUMP_FORCE, z: 0 }, true);
         }
+        resetControlKey('jump'); // Reset jump after processing
     }
 
-    // Update player visual orientation if moving
-    if (moveDirection.lengthSq() > 0) {
-        // Rotate player mesh to face movement direction
-        // This is a simple rotation, might need smoothing or different logic for third-person view
-        const angle = Math.atan2(moveDirection.x, moveDirection.z);
+    // --- Attack ---
+    if (attack && canAttack && !playerIsAttacking) {
+      console.log("Player attacking!");
+      setPlayerStoreAttacking(true);
+      setIsHitboxActive(true);
+      setCanAttack(false); // Start cooldown
+
+      // (Placeholder for attack animation)
+
+      // Deactivate hitbox after ATTACK_DURATION
+      if (attackTimeoutRef.current) clearTimeout(attackTimeoutRef.current);
+      attackTimeoutRef.current = setTimeout(() => {
+        setIsHitboxActive(false);
+        setPlayerStoreAttacking(false);
+        resetControlKey('attack'); // Reset attack control state
+        console.log("Player attack finished, hitbox deactivated.");
+      }, ATTACK_DURATION);
+
+      // Allow attacking again after ATTACK_COOLDOWN
+      if (attackCooldownTimeoutRef.current) clearTimeout(attackCooldownTimeoutRef.current);
+      attackCooldownTimeoutRef.current = setTimeout(() => {
+        setCanAttack(true);
+        console.log("Player can attack again.");
+      }, ATTACK_COOLDOWN);
+    }
+
+
+    // --- Player Visual Orientation ---
+    if (_movement.lengthSq() > 0) {
+        const angle = Math.atan2(_movement.x, _movement.z);
         playerObject.rotation.y = angle;
     }
-
-    // Update camera target or player position for camera follow later
-    // For now, just ensure the RigidBody has the playerObject as its child for visual representation
   });
 
   return (
     <RigidBody
       ref={playerRigidBodyRef}
-      colliders={false}
+      colliders={false} // Main collider is CapsuleCollider below
       type="dynamic"
       position={[0, 1, 0]}
-      enabledRotations={[false, true, false]}
+      enabledRotations={[false, true, false]} // Only allow Y-axis rotation
       friction={0.5}
       restitution={0.2}
-      name="player"
-      mass={1} // Explicitly set mass
+      name="player" // For debugging or specific interactions
+      mass={1}
+      userData={{ type: "player" }} // For identifying in collision events
     >
-      <CapsuleCollider args={[0.5, 0.5]} />
+      {/* Main player body collider */}
+      <CapsuleCollider args={[0.5, 0.5]} /> {/* Half-height, radius */}
+
+      {/* Player visual representation */}
       <group ref={playerObjectRef}>
         <mesh castShadow>
           <capsuleGeometry args={[0.5, 0.5, 16, 8]} />
           <meshStandardMaterial color="royalblue" />
         </mesh>
+
+        {/* Attack Hitbox: A sensor CuboidCollider in front of the player */}
+        {/* It's part of the player's group so it moves and rotates with the player */}
+        {/* Positioned 0.75 units in front, 0.5 units half-width/depth, 0.5 units half-height */}
+        <CuboidCollider
+          ref={hitboxRef}
+          args={[0.5, 0.5, 0.5]} // Half-extents: width, height, depth
+          position={[0, 0.5, -0.75]} // x, y (centered on player's capsule height), z (in front)
+          sensor={true} // Make it a sensor so it detects but doesn't cause physical collision response
+          activeEvents={isHitboxActive ? 0b01 : 0b00} // CollisionEvents.CONTACT_EVENTS : 0 - Only active when isHitboxActive
+          userData={{ type: "playerAttackHitbox" }} // For identifying in collision events
+        />
+         {/* Optional: Visualizer for hitbox (for debugging) */}
+        {isHitboxActive && (
+            <mesh position={[0, 0.5, -0.75]}>
+                <boxGeometry args={[1, 1, 1]} />
+                <meshStandardMaterial color="red" wireframe />
+            </mesh>
+        )}
       </group>
     </RigidBody>
   );
