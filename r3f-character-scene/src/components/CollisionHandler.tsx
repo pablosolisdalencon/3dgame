@@ -1,8 +1,10 @@
 import React from 'react';
-import { useIntersectionEvents } from '@react-three/rapier';
-import type { Collider } from '@react-three/rapier';
+import { useIntersectionEvents, RapierRigidBody } from '@react-three/rapier'; // RapierRigidBody for type hint
+import type { Collider } from '@react-three/rapier'; // Only Collider type is needed from here now
 import { useEnemyStore } from '../stores/enemyStore';
-import { usePlayerStore } from '../stores/playerStore'; // For potential future use (e.g. enemy attacks player)
+import { usePlayerStore } from '../stores/playerStore';
+import { useInventoryStore } from '../stores/inventoryStore'; // Import inventory store
+import { useLootStore } from '../stores/lootStore'; // Import loot store
 
 const PLAYER_ATTACK_DAMAGE = 25;
 
@@ -13,68 +15,72 @@ const CollisionHandler: React.FC = () => {
   useIntersectionEvents( (event) => {
     const collider1 = event.collider1;
     const collider2 = event.collider2;
-    const rigidBody1 = collider1.parent();
-    const rigidBody2 = collider2.parent();
+    const rb1 = collider1.parent();
+    const rb2 = collider2.parent();
 
-    // Check if one is playerAttackHitbox and the other is an enemy
-    let playerHitboxCollider: Collider | null = null;
-    let enemyCollider: Collider | null = null;
-    let enemyRigidBody: ReturnType<Collider['parent']> | null = null;
+    // Helper to determine which is player, enemy, hitbox, loot etc.
+    const getEntityPair = (
+        typeA: string,
+        typeB: string,
+        c1: Collider, r1: RapierRigidBody | null,
+        c2: Collider, r2: RapierRigidBody | null
+    ): [Collider | null, RapierRigidBody | null, Collider | null, RapierRigidBody | null] => {
+        if (c1.userData?.type === typeA && r2?.userData?.type === typeB) return [c1, r1, c2, r2];
+        if (c2.userData?.type === typeA && r1?.userData?.type === typeB) return [c2, r2, c1, r1];
+        // For loot, the loot data is on the collider's parent RB, but the type is on the collider itself
+        if (c1.userData?.type === typeA && c2.userData?.type === typeB) return [c1, r1, c2, r2];
+        if (c2.userData?.type === typeA && c1.userData?.type === typeB) return [c2, r2, c1, r1];
+        return [null, null, null, null];
+    };
 
-    if (collider1.userData?.type === "playerAttackHitbox" && rigidBody2?.userData?.type === "enemy") {
-      playerHitboxCollider = collider1;
-      enemyCollider = collider2;
-      enemyRigidBody = rigidBody2;
-    } else if (collider2.userData?.type === "playerAttackHitbox" && rigidBody1?.userData?.type === "enemy") {
-      playerHitboxCollider = collider2;
-      enemyCollider = collider1;
-      enemyRigidBody = rigidBody1;
-    }
+    // --- Player Attack Hitbox vs Enemy ---
+    const [playerHitbox, , enemyBodyCollider, enemyRb] = getEntityPair("playerAttackHitbox", "enemy", collider1, rb1, collider2, rb2);
 
-    if (playerHitboxCollider && enemyCollider && enemyRigidBody && event.intersecting) {
-      // Intersection started
-      const enemyId = enemyRigidBody.userData?.id as string;
+    if (playerHitbox && enemyBodyCollider && enemyRb && event.intersecting) {
+      const enemyId = enemyRb.userData?.id as string;
       if (enemyId) {
-        console.log(`Player attack hitbox collided with enemy ${enemyId}`);
+        // console.log(`Player attack hitbox collided with enemy ${enemyId}`);
         const { enemyDied } = dealDamageToEnemy(enemyId, PLAYER_ATTACK_DAMAGE);
-        console.log(`Dealt ${PLAYER_ATTACK_DAMAGE} damage to enemy ${enemyId}. Enemy died: ${enemyDied}`);
-        // Here, we could also trigger the flash effect on the enemy.
-        // This will be handled more directly in AiController via store subscription in the next step.
-
-        // Optionally, apply a small knockback to the enemy
-        // This requires access to the enemy's RigidBody instance.
-        // For now, we'll skip direct knockback from here to keep it simpler.
-        // Knockback could also be a reaction within the AiController itself when its health changes.
-
-        // Important: Prevent dealing damage multiple times for the same attack swing.
-        // The player's attack hitbox is active for a duration. If the enemy remains intersecting,
-        // this event might fire multiple times.
-        // One way is to have the player's attack "remember" who it hit this swing.
-        // Or, the hitbox could be disabled immediately after first contact for this swing.
-        // For now, the damage store logic in enemyStore (won't damage DYING/DEAD) helps,
-        // but an enemy could still take multiple hits from one swing if alive.
-        // A simple solution: the hitbox collider itself could be disabled more rapidly,
-        // or the player's `setAttacking(false)` could be called sooner.
-        // The current setup in PlayerController (disabling hitbox after ATTACK_DURATION) is a start.
-        // A more robust system might involve a list of entities hit during the current attack action.
+        // console.log(`Dealt ${PLAYER_ATTACK_DAMAGE} damage to enemy ${enemyId}. Enemy died: ${enemyDied}`);
+        // Note: A single attack swing might register multiple intersections if the hitbox remains
+        // active and overlapping. PlayerController's attack duration and cooldown manage this.
+        // For true single-hit-per-swing, more state needed on PlayerController (e.g. list of hit IDs per swing).
       }
     }
-    // else if (playerHitboxCollider && enemyCollider && !event.intersecting) {
-    //   // Intersection ended
-    //   // console.log("Player attack hitbox stopped colliding with enemy");
-    // }
 
-    // --- Example: Enemy attacks player ---
-    // if (collider1.userData?.type === "enemyAttackHitbox" && rigidBody2?.userData?.type === "player") {
-    //   if (event.intersecting) {
-    //     console.log("Enemy attack hitbox collided with player");
-    //     // dealDamageToPlayer(ENEMY_ATTACK_DAMAGE);
-    //   }
-    // } else if (collider2.userData?.type === "enemyAttackHitbox" && rigidBody1?.userData?.type === "player") {
-    //   if (event.intersecting) {
-    //     console.log("Enemy attack hitbox collided with player");
-    //     // dealDamageToPlayer(ENEMY_ATTACK_DAMAGE);
-    //   }
+    // --- Player vs Loot ---
+    // Player's main body collider (not the attack hitbox) vs loot sensor
+    // Assuming player's main collider is the first one on the player RB (CapsuleCollider)
+    // and loot items have userData.type === "loot" on their *RigidBody*.
+    // The LootDrop component sets userData on the RigidBody.
+    let playerBodyRb: RapierRigidBody | null = null;
+    let lootRb: RapierRigidBody | null = null;
+    let lootItemData: any = null;
+
+    if (rb1?.userData?.type === "player" && rb2?.userData?.type === "loot") {
+        playerBodyRb = rb1;
+        lootRb = rb2;
+        lootItemData = rb2.userData;
+    } else if (rb2?.userData?.type === "player" && rb1?.userData?.type === "loot") {
+        playerBodyRb = rb2;
+        lootRb = rb1;
+        lootItemData = rb1.userData;
+    }
+
+    if (playerBodyRb && lootRb && lootItemData && event.intersecting) {
+        const { lootId, itemId, itemName } = lootItemData;
+        if (lootId && itemId && itemName) {
+            console.log(`Player picked up loot: ${itemName} (Instance: ${lootId}, Type: ${itemId})`);
+            addItemToInventory({ id: itemId, name: itemName /* icon can be added here if defined */ });
+            removeLootFromScene(lootId); // Remove from active loot in the 3D world
+        }
+    }
+
+    // --- Potential future: Enemy Attack Hitbox vs Player ---
+    // const [enemyAttackHitbox, , playerBodyForEnemyAttack, playerRbForEnemyAttack] = getEntityPair("enemyAttackHitbox", "player", collider1, rb1, collider2, rb2);
+    // if (enemyAttackHitbox && playerBodyForEnemyAttack && playerRbForEnemyAttack && event.intersecting) {
+    //   console.log("Enemy attack hitbox collided with player");
+    //   // dealDamageToPlayer(ENEMY_ATTACK_DAMAGE_VALUE);
     // }
   });
 

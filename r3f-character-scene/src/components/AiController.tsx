@@ -3,7 +3,8 @@ import { useFrame } from '@react-three/fiber';
 import { RigidBody, CapsuleCollider, RapierRigidBodyProps } from '@react-three/rapier';
 import type { RapierRigidBody } from '@react-three-rapier';
 import { usePlayerStore } from '../stores/playerStore';
-import { useEnemyStore, EnemyStatus } from '../stores/enemyStore';
+import { useEnemyStore } from '../stores/enemyStore'; // EnemyStatus is implicitly typed via store
+import { useLootStore } from '../stores/lootStore'; // Import loot store
 import * as THREE from 'three';
 
 interface AiControllerProps {
@@ -50,11 +51,13 @@ const AiController: React.FC<AiControllerProps> = ({ id, initialPosition }) => {
 
   useEffect(() => {
     // Set original color from mesh if possible, once available
-    if (enemyObjectRef.current) {
+    // Use materialRef for more direct access if mesh structure is simple
+    if (materialRef.current) {
+        originalColor.current.copy(materialRef.current.color);
+    } else if (enemyObjectRef.current) { // Fallback
         const mesh = enemyObjectRef.current.children[0] as THREE.Mesh;
-        if (mesh && mesh.material) {
-            const mat = mesh.material as THREE.MeshStandardMaterial;
-            originalColor.current.copy(mat.color);
+        if (mesh && mesh.material && (mesh.material as THREE.MeshStandardMaterial).color) {
+            originalColor.current.copy((mesh.material as THREE.MeshStandardMaterial).color);
         }
     }
     return () => { // Cleanup timeouts
@@ -94,7 +97,10 @@ const AiController: React.FC<AiControllerProps> = ({ id, initialPosition }) => {
       enemyRbRef.current?.sleep();
     } else {
       setIsVisible(true);
-      setRbType("dynamic");
+      // Only set to dynamic if not DYING, DYING will set its own type
+      if (enemyData.status !== "DYING") {
+         setRbType("dynamic");
+      }
     }
   }, [enemyData?.status]);
 
@@ -105,10 +111,10 @@ const AiController: React.FC<AiControllerProps> = ({ id, initialPosition }) => {
     }
 
     const rb = enemyRbRef.current;
-    const currentPositionVec = rb.translation(); // Use this consistently
+    const currentPositionVec = rb.translation();
     updateEnemyPosition(id, new THREE.Vector3(currentPositionVec.x, currentPositionVec.y, currentPositionVec.z));
 
-    const distanceToPlayer = playerPosition.distanceTo(currentPositionVec);
+    const distanceToPlayer = playerPosition.distanceTo(new THREE.Vector3(currentPositionVec.x, currentPositionVec.y, currentPositionVec.z));
     const directionToPlayer = new THREE.Vector3().subVectors(playerPosition, currentPosition).normalize();
 
     // State Machine Logic
@@ -154,12 +160,17 @@ const AiController: React.FC<AiControllerProps> = ({ id, initialPosition }) => {
           attackCooldownAIRef.current = setTimeout(() => {
             setCanAttackPlayer(true);
             // Decide next state after attack cooldown
-            if (distanceToPlayer < ATTACK_RADIUS) {
-                updateEnemyStatus(id, "ATTACKING"); // Re-evaluate if still in range
-            } else if (distanceToPlayer < DETECTION_RADIUS) {
-                updateEnemyStatus(id, "CHASING");
-            } else {
-                updateEnemyStatus(id, "IDLE");
+            // Check current status from store again, as it might have changed (e.g. died)
+            const freshEnemyData = useEnemyStore.getState().enemies[id]; // Get latest data
+            if (freshEnemyData?.status === "ATTACKING") { // Check if still in attacking state
+                 const currentDistance = playerPosition.distanceTo(new THREE.Vector3(rb.translation().x, rb.translation().y, rb.translation().z));
+                if (currentDistance < ATTACK_RADIUS) {
+                    // Stays in ATTACKING, will re-evaluate on next canAttackPlayer cycle
+                } else if (currentDistance < DETECTION_RADIUS) {
+                    updateEnemyStatus(id, "CHASING");
+                } else {
+                    updateEnemyStatus(id, "IDLE");
+                }
             }
           }, ATTACK_COOLDOWN_ENEMY);
         }
@@ -171,35 +182,47 @@ const AiController: React.FC<AiControllerProps> = ({ id, initialPosition }) => {
     }
   });
 
-  // Handle automatic transition from DYING to DEAD
+  // Handle automatic transition from DYING to DEAD and loot drop
   useEffect(() => {
-    if (enemyData?.status === "DYING") {
-      console.log(`Enemy ${id} is DYING.`);
-      // Placeholder for death animation
+    if (!enemyData) return;
+
+    if (enemyData.status === "DYING") {
+      console.log(`Enemy ${id} is DYING. Preparing to drop loot and transition to DEAD.`);
+      setIsVisible(true); // Ensure visible during dying "animation"
+      setRbType("kinematicPosition"); // Prevent further physics interaction but can be "animated"
+
+      // Attempt to drop loot
+      POTENTIAL_LOOT.forEach(loot => {
+        if (Math.random() < loot.dropChance) {
+          const dropPosition = enemyRbRef.current?.translation();
+          if (dropPosition) {
+            // Add a slight vertical offset for the drop if desired
+            const spawnPos = new THREE.Vector3(dropPosition.x, dropPosition.y + 0.5, dropPosition.z);
+            spawnLoot(loot.itemId, loot.itemName, spawnPos);
+            // console.log(`Enemy ${id} dropped ${loot.itemName}`); // Logged by lootStore now
+          }
+        }
+      });
+
       if (deathTimeoutRef.current) clearTimeout(deathTimeoutRef.current);
       deathTimeoutRef.current = setTimeout(() => {
         updateEnemyStatus(id, "DEAD");
-        console.log(`Enemy ${id} is DEAD.`);
-        if (enemyRbRef.current) {
-            // Optionally disable physics body or make it static
-            // enemyRbRef.current.sleep(); // Put body to sleep
-        }
+        // console.log(`Enemy ${id} is DEAD.`); // Logged by lootStore now
       }, DEATH_DURATION);
     }
-  }, [enemyData?.status, id, updateEnemyStatus]);
+
+  }, [enemyData?.status, id, updateEnemyStatus, spawnLoot, enemyData]); // Added enemyData to deps for loot drop position
 
 
-  if (!enemyData || enemyData.status === "INACTIVE") { // Don't render if not in store or inactive
+  if (!enemyData || !isVisible) { // If no data or not visible (e.g. DEAD and processed)
     return null;
   }
-   // If DEAD, we still render it initially to allow useFrame to make it invisible, then it effectively unmounts visually.
-   // A more robust way would be for the store to manage a list of active enemy IDs.
 
   return (
     <RigidBody
       ref={enemyRbRef}
       colliders={false}
-      type="dynamic"
+      type={rbType} // Dynamically set based on status
       position={initialPosition}
       enabledRotations={[false, true, false]}
       friction={0.5}
@@ -207,13 +230,15 @@ const AiController: React.FC<AiControllerProps> = ({ id, initialPosition }) => {
       name={`enemy-${id}`}
       mass={1}
       userData={{ type: "enemy", id: id }} // Identify as enemy and its ID
-      visible={enemyData.status !== "DEAD"} // Control visibility via Rapier body as well
+      // Visibility of the RigidBody itself isn't a direct prop in Rapier components,
+      // it's controlled by whether the component renders or not, and the visibility of its children.
     >
-      <CapsuleCollider args={[0.5, 0.5]} /> {/* Half-height, radius */}
-      <group ref={enemyObjectRef} visible={enemyData.status !== "DEAD"}> {/* Visual group */}
+      <CapsuleCollider args={[0.5, 0.5]} />
+      <group ref={enemyObjectRef} visible={isVisible}> {/* Control visibility of the THREE.Group */}
         <mesh castShadow receiveShadow>
           <capsuleGeometry args={[0.5, 0.5, 16, 8]} />
           <meshStandardMaterial
+            ref={materialRef} // Assign ref to material
             color={isFlashing ? 0xffffff : originalColor.current}
             emissive={isFlashing ? new THREE.Color(0xffffff) : new THREE.Color(0x000000)}
             emissiveIntensity={isFlashing ? 0.5 : 0}
