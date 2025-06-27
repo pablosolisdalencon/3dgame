@@ -1,0 +1,40 @@
+.hud-container {
+  position: fixed;
+  top: 20px;
+  left: 20px;
+  z-index: 1000; /* Ensure it's above the canvas */
+  color: white;
+  font-family: Arial, sans-serif;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.health-bar-container {
+  width: 200px;
+  height: 20px;
+  background-color: rgba(50, 50, 50, 0.7);
+  border: 2px solid #333;
+  border-radius: 5px;
+  position: relative; /* For text positioning */
+  overflow: hidden; /* Ensures fill doesn't go outside rounded corners */
+}
+
+.health-bar-fill {
+  height: 100%;
+  background-color: #4CAF50; /* Green for health */
+  transition: width 0.3s ease-out; /* Smooth transition for health changes */
+  border-radius: 3px; /* Slightly less than container for nice fit */
+}
+
+.health-bar-text {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 12px;
+  font-weight: bold;
+  color: white;
+  text-shadow: 1px 1px 2px black; /* Make text more readable */
+  white-space: nowrap; /* Prevent text wrapping */
+}
