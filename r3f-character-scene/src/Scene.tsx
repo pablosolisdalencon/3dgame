@@ -1,18 +1,29 @@
-import React from 'react';
-import { Physics, useRapier, RigidBody, CuboidCollider } from '@react-three/rapier';
+import React, { useEffect } from 'react';
+import { Physics, useRapier, RigidBody, CuboidCollider, ActiveEvents } from '@react-three/rapier';
 import PlayerController from './components/PlayerController';
-import CameraRig from './components/CameraRig'; // Import CameraRig
+import CameraRig from './components/CameraRig';
+import CollisionHandler from './components/CollisionHandler';
+import AiController from './components/AiController'; // Import AiController
+import { useEnemyStore } from './stores/enemyStore'; // Import enemy store
+import * as THREE from 'three';
 import { useThree } from '@react-three/fiber';
 
 // This component will ensure the rapier world is available in scene.userData
 const RapierWorldSetup: React.FC = () => {
   const { scene } = useThree();
   const rapier = useRapier();
-  if (rapier.world) { // Ensure world is initialized
+  if (rapier.world) {
     scene.userData.rapierWorld = rapier.world;
   }
   return null;
 };
+
+// Define initial enemy configurations
+const initialEnemiesConfig = [
+  { id: "enemy-1", position: new THREE.Vector3(5, 1, 0), health: 100, maxHealth: 100 },
+  { id: "enemy-2", position: new THREE.Vector3(-5, 1, 2), health: 120, maxHealth: 120 },
+  { id: "enemy-3", position: new THREE.Vector3(0, 1, -6), health: 80, maxHealth: 80 },
+];
 
 const Ground: React.FC = () => {
   return (
@@ -73,6 +84,25 @@ const Walls: React.FC = () => {
 }
 
 const Scene: React.FC = () => {
+  const addEnemy = useEnemyStore((state) => state.addEnemy);
+  const enemies = useEnemyStore((state) => state.enemies);
+
+  // Add initial enemies to the store on component mount
+  useEffect(() => {
+    initialEnemiesConfig.forEach(config => {
+      // Check if enemy already exists to prevent duplicates on HMR or re-renders
+      if (!enemies[config.id]) {
+        addEnemy({
+          id: config.id,
+          position: config.position,
+          health: config.health,
+          maxHealth: config.maxHealth,
+          initialStatus: "IDLE",
+        });
+      }
+    });
+  }, [addEnemy]); // `enemies` removed from deps to only run once for initial setup
+
   return (
     <>
       <ambientLight intensity={0.8} />
