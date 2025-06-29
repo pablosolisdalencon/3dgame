@@ -1,16 +1,19 @@
 import React from 'react';
-import { useIntersectionEvents, RapierRigidBody } from '@react-three/rapier'; // RapierRigidBody for type hint
+import { useIntersectionEvents, RapierRigidBody } from '@react-three-rapier'; // RapierRigidBody for type hint
 import type { Collider } from '@react-three/rapier'; // Only Collider type is needed from here now
 import { useEnemyStore } from '../stores/enemyStore';
-import { usePlayerStore } from '../stores/playerStore';
+import { usePlayerStore } from '../stores/playerStore'; // Now used for player taking damage
 import { useInventoryStore } from '../stores/inventoryStore'; // Import inventory store
 import { useLootStore } from '../stores/lootStore'; // Import loot store
 
 const PLAYER_ATTACK_DAMAGE = 25;
+const ENEMY_ATTACK_DAMAGE = 15; // TODO: Centralize this constant
 
 const CollisionHandler: React.FC = () => {
   const { dealDamageToEnemy } = useEnemyStore();
-  // const { takeDamage: dealDamageToPlayer } = usePlayerStore(); // Example if enemies could attack
+  const { takeDamage: dealDamageToPlayer } = usePlayerStore(); // Get takeDamage for player
+  const addItemToInventory = useInventoryStore((state) => state.addItem);
+  const removeLootFromScene = useLootStore((state) => state.removeLoot);
 
   useIntersectionEvents( (event) => {
     const collider1 = event.collider1;
@@ -48,26 +51,44 @@ const CollisionHandler: React.FC = () => {
       }
     }
 
+    // --- Enemy Attack Hitbox vs Player ---
+    // Player's RigidBody userData.type is "player"
+    // Enemy's attack hitbox (CuboidCollider) userData.type is "enemyAttackHitbox"
+    const [enemyAttackCollider, enemyAttackRb, playerBodyCollider, playerBodyRbDetails] = getEntityPair("enemyAttackHitbox", "player", collider1, rb1, collider2, rb2);
+
+    if (enemyAttackCollider && playerBodyCollider && event.intersecting) {
+      // enemyAttackRb is the RigidBody of the enemy owning the hitbox.
+      // enemyAttackCollider.userData.id should be the enemy's ID if set up in AiController.
+      const attackingEnemyId = enemyAttackCollider.userData?.id as string; // or enemyAttackRb.userData.id
+      console.log(`Enemy attack hitbox (owner: ${attackingEnemyId || 'unknown'}) collided with player.`);
+      dealDamageToPlayer(ENEMY_ATTACK_DAMAGE);
+      // Note: The AiController's isEnemyHitboxActive state and ENEMY_HITBOX_ACTIVE_DURATION
+      // should prevent this from firing continuously for a single attack.
+      // For additional safety (e.g. player invulnerability frames), that logic would go here or in playerStore.
+    }
+
+
     // --- Player vs Loot ---
     // Player's main body collider (not the attack hitbox) vs loot sensor
-    // Assuming player's main collider is the first one on the player RB (CapsuleCollider)
-    // and loot items have userData.type === "loot" on their *RigidBody*.
-    // The LootDrop component sets userData on the RigidBody.
-    let playerBodyRb: RapierRigidBody | null = null;
-    let lootRb: RapierRigidBody | null = null;
+    // Loot items have userData.type === "loot" on their *RigidBody*.
+    let playerForLootRb: RapierRigidBody | null = null;
+    let lootItemRb: RapierRigidBody | null = null;
     let lootItemData: any = null;
 
+    // Check rb1 is player and rb2 is loot
     if (rb1?.userData?.type === "player" && rb2?.userData?.type === "loot") {
-        playerBodyRb = rb1;
-        lootRb = rb2;
+        playerForLootRb = rb1;
+        lootItemRb = rb2;
         lootItemData = rb2.userData;
-    } else if (rb2?.userData?.type === "player" && rb1?.userData?.type === "loot") {
-        playerBodyRb = rb2;
-        lootRb = rb1;
+    }
+    // Check rb2 is player and rb1 is loot
+    else if (rb2?.userData?.type === "player" && rb1?.userData?.type === "loot") {
+        playerForLootRb = rb2;
+        lootItemRb = rb1;
         lootItemData = rb1.userData;
     }
 
-    if (playerBodyRb && lootRb && lootItemData && event.intersecting) {
+    if (playerForLootRb && lootItemRb && lootItemData && event.intersecting) {
         const { lootId, itemId, itemName } = lootItemData;
         if (lootId && itemId && itemName) {
             console.log(`Player picked up loot: ${itemName} (Instance: ${lootId}, Type: ${itemId})`);
@@ -75,13 +96,6 @@ const CollisionHandler: React.FC = () => {
             removeLootFromScene(lootId); // Remove from active loot in the 3D world
         }
     }
-
-    // --- Potential future: Enemy Attack Hitbox vs Player ---
-    // const [enemyAttackHitbox, , playerBodyForEnemyAttack, playerRbForEnemyAttack] = getEntityPair("enemyAttackHitbox", "player", collider1, rb1, collider2, rb2);
-    // if (enemyAttackHitbox && playerBodyForEnemyAttack && playerRbForEnemyAttack && event.intersecting) {
-    //   console.log("Enemy attack hitbox collided with player");
-    //   // dealDamageToPlayer(ENEMY_ATTACK_DAMAGE_VALUE);
-    // }
   });
 
   return null; // This component does not render anything

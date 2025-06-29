@@ -1,51 +1,51 @@
 import create from 'zustand';
+import { getItemDefinition, ItemDefinition } from '../data/itemDefinitions'; // Import item definitions
+import { usePlayerStore } from './playerStore'; // To apply effects like healing
 
-export interface Item {
-  id: string; // Unique identifier for the item type (e.g., "health_potion", "gold_coin")
-  name: string; // Display name (e.g., "Health Potion", "Gold Coin")
-  icon?: string; // Optional: path to an icon image
+// Represents an item instance in the inventory
+export interface InventoryItem {
+  id: string;       // ItemDefinition ID
   quantity: number;
-  // description?: string; // Optional: for item details
-  // stackable?: boolean; // Optional: default true, false for unique gear etc.
-  // maxStack?: number; // Optional: if stackable
 }
 
 interface InventoryState {
-  items: Record<string, Item>; // Store items by their ID for easy access
+  items: Record<string, InventoryItem>; // Store items by their ID
 
-  // Adds a specific quantity of an item. If item exists, increases quantity. If not, adds new item.
-  addItem: (itemDetails: Omit<Item, 'quantity'>, amount?: number) => void;
-
-  // Removes a specific quantity of an item. If quantity drops to 0 or less, removes item.
+  addItem: (itemId: string, amount?: number) => void;
   removeItem: (itemId: string, amount?: number) => void;
-
-  // Gets a specific item by ID
-  getItem: (itemId: string) => Item | undefined;
-
-  // Clears the entire inventory
+  useItem: (itemId: string) => boolean; // Returns true if item was used successfully
+  getItem: (itemId: string) => InventoryItem | undefined;
+  getItemDefinition: (itemId: string) => ItemDefinition | undefined; // Helper to get full definition
   clearInventory: () => void;
 }
 
 export const useInventoryStore = create<InventoryState>((set, get) => ({
   items: {},
 
-  addItem: (itemDetails, amount = 1) => {
+  addItem: (itemId, amount = 1) => {
+    const definition = getItemDefinition(itemId);
+    if (!definition) {
+      console.warn(`InventoryStore: Attempted to add item with unknown ID: ${itemId}`);
+      return;
+    }
+
     set((state) => {
       const newItems = { ...state.items };
-      const existingItem = newItems[itemDetails.id];
+      const existingItem = newItems[itemId];
 
       if (existingItem) {
-        newItems[itemDetails.id] = {
+        const newQuantity = existingItem.quantity + amount;
+        newItems[itemId] = {
           ...existingItem,
-          quantity: existingItem.quantity + amount,
+          quantity: definition.stackable ? Math.min(newQuantity, definition.maxStack || Infinity) : 1,
         };
       } else {
-        newItems[itemDetails.id] = {
-          ...itemDetails,
-          quantity: amount,
+        newItems[itemId] = {
+          id: itemId,
+          quantity: definition.stackable ? Math.min(amount, definition.maxStack || Infinity) : 1,
         };
       }
-      console.log(`Added ${amount} of ${itemDetails.name} (ID: ${itemDetails.id}). New quantity: ${newItems[itemDetails.id].quantity}`);
+      console.log(`Inventory: Added ${amount} of ${definition.name} (ID: ${itemId}). New quantity: ${newItems[itemId].quantity}`);
       return { items: newItems };
     });
   },
@@ -54,33 +54,67 @@ export const useInventoryStore = create<InventoryState>((set, get) => ({
     set((state) => {
       const newItems = { ...state.items };
       const existingItem = newItems[itemId];
+      const definition = getItemDefinition(itemId); // Get definition for logging name
 
       if (existingItem) {
         const newQuantity = existingItem.quantity - amount;
         if (newQuantity <= 0) {
           delete newItems[itemId];
-          console.log(`Removed all ${existingItem.name} (ID: ${itemId}).`);
+          if (definition) console.log(`Inventory: Removed all ${definition.name} (ID: ${itemId}).`);
+          else console.log(`Inventory: Removed all of item ID: ${itemId}.`);
         } else {
-          newItems[itemId] = {
-            ...existingItem,
-            quantity: newQuantity,
-          };
-          console.log(`Removed ${amount} of ${existingItem.name} (ID: ${itemId}). New quantity: ${newQuantity}`);
+          newItems[itemId] = { ...existingItem, quantity: newQuantity };
+          if (definition) console.log(`Inventory: Removed ${amount} of ${definition.name} (ID: ${itemId}). New quantity: ${newQuantity}`);
+          else console.log(`Inventory: Removed ${amount} of item ID: ${itemId}. New quantity: ${newQuantity}`);
         }
       } else {
-        console.warn(`Attempted to remove item ID ${itemId} but it was not found in inventory.`);
+        console.warn(`InventoryStore: Attempted to remove item ID ${itemId} but it was not found.`);
       }
       return { items: newItems };
     });
   },
 
-  getItem: (itemId: string) => {
-    return get().items[itemId];
+  useItem: (itemId) => {
+    const inventoryItem = get().items[itemId];
+    const definition = getItemDefinition(itemId);
+    const playerHeal = usePlayerStore.getState().heal; // Get heal function from playerStore
+
+    if (!inventoryItem || inventoryItem.quantity <= 0) {
+      console.warn(`InventoryStore: Attempted to use item ID ${itemId}, but it's not in inventory or quantity is zero.`);
+      return false;
+    }
+    if (!definition) {
+      console.warn(`InventoryStore: No definition found for item ID ${itemId} to use.`);
+      return false;
+    }
+
+    let usedSuccessfully = false;
+    // Apply effects
+    if (definition.type === 'consumable' && definition.effects) {
+      if (definition.effects.heal) {
+        playerHeal(definition.effects.heal as number);
+        console.log(`Inventory: Used ${definition.name}, healed for ${definition.effects.heal}.`);
+        usedSuccessfully = true;
+      }
+      // ... other effects like mana restoration, buffs, etc.
+    } else {
+      console.log(`Inventory: Item ${definition.name} is not a consumable with defined effects or not handled.`);
+    }
+
+    if (usedSuccessfully) {
+      // Decrease quantity or remove item
+      get().removeItem(itemId, 1);
+    }
+    return usedSuccessfully;
   },
+
+  getItem: (itemId: string) => get().items[itemId],
+
+  getItemDefinition: (itemId: string) => getItemDefinition(itemId),
 
   clearInventory: () => {
     set({ items: {} });
-    console.log("Inventory cleared.");
+    console.log("Inventory: Cleared.");
   },
 }));
 
