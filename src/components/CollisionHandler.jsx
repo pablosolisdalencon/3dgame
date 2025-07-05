@@ -1,15 +1,14 @@
 import React from 'react';
-import { useIntersectionEvents, RapierRigidBody } from '@react-three-rapier'; // RapierRigidBody for type hint
-import type { Collider } from '@react-three/rapier'; // Only Collider type is needed from here now
-import { useEnemyStore } from '../stores/enemyStore';
-import { usePlayerStore } from '../stores/playerStore'; // Now used for player taking damage
-import { useInventoryStore } from '../stores/inventoryStore'; // Import inventory store
-import { useLootStore } from '../stores/lootStore'; // Import loot store
+import { useIntersectionEvents } from '@react-three-rapier'; // RapierRigidBody for type hint // Removed Collider type import // Removed RapierRigidBody
+import { useEnemyStore } from '../stores/enemyStore.js';
+import { usePlayerStore } from '../stores/playerStore.js'; // Now used for player taking damage
+import { useInventoryStore } from '../stores/inventoryStore.js'; // Import inventory store
+import { useLootStore } from '../stores/lootStore.js'; // Import loot store
 
 const PLAYER_ATTACK_DAMAGE = 25;
 const ENEMY_ATTACK_DAMAGE = 15; // TODO: Centralize this constant
 
-const CollisionHandler: React.FC = () => {
+const CollisionHandler = () => {
   const { dealDamageToEnemy } = useEnemyStore();
   const { takeDamage: dealDamageToPlayer } = usePlayerStore(); // Get takeDamage for player
   const addItemToInventory = useInventoryStore((state) => state.addItem);
@@ -23,11 +22,11 @@ const CollisionHandler: React.FC = () => {
 
     // Helper to determine which is player, enemy, hitbox, loot etc.
     const getEntityPair = (
-        typeA: string,
-        typeB: string,
-        c1: Collider, r1: RapierRigidBody | null,
-        c2: Collider, r2: RapierRigidBody | null
-    ): [Collider | null, RapierRigidBody | null, Collider | null, RapierRigidBody | null] => {
+        typeA,
+        typeB,
+        c1, r1,
+        c2, r2
+    ) => {
         if (c1.userData?.type === typeA && r2?.userData?.type === typeB) return [c1, r1, c2, r2];
         if (c2.userData?.type === typeA && r1?.userData?.type === typeB) return [c2, r2, c1, r1];
         // For loot, the loot data is on the collider's parent RB, but the type is on the collider itself
@@ -40,7 +39,7 @@ const CollisionHandler: React.FC = () => {
     const [playerHitbox, , enemyBodyCollider, enemyRb] = getEntityPair("playerAttackHitbox", "enemy", collider1, rb1, collider2, rb2);
 
     if (playerHitbox && enemyBodyCollider && enemyRb && event.intersecting) {
-      const enemyId = enemyRb.userData?.id as string;
+      const enemyId = enemyRb.userData?.id;
       if (enemyId) {
         // console.log(`Player attack hitbox collided with enemy ${enemyId}`);
         const { enemyDied } = dealDamageToEnemy(enemyId, PLAYER_ATTACK_DAMAGE);
@@ -59,7 +58,7 @@ const CollisionHandler: React.FC = () => {
     if (enemyAttackCollider && playerBodyCollider && event.intersecting) {
       // enemyAttackRb is the RigidBody of the enemy owning the hitbox.
       // enemyAttackCollider.userData.id should be the enemy's ID if set up in AiController.
-      const attackingEnemyId = enemyAttackCollider.userData?.id as string; // or enemyAttackRb.userData.id
+      const attackingEnemyId = enemyAttackCollider.userData?.id; // or enemyAttackRb.userData.id
       console.log(`Enemy attack hitbox (owner: ${attackingEnemyId || 'unknown'}) collided with player.`);
       dealDamageToPlayer(ENEMY_ATTACK_DAMAGE);
       // Note: The AiController's isEnemyHitboxActive state and ENEMY_HITBOX_ACTIVE_DURATION
@@ -71,9 +70,9 @@ const CollisionHandler: React.FC = () => {
     // --- Player vs Loot ---
     // Player's main body collider (not the attack hitbox) vs loot sensor
     // Loot items have userData.type === "loot" on their *RigidBody*.
-    let playerForLootRb: RapierRigidBody | null = null;
-    let lootItemRb: RapierRigidBody | null = null;
-    let lootItemData: any = null;
+    let playerForLootRb = null;
+    let lootItemRb = null;
+    let lootItemData = null;
 
     // Check rb1 is player and rb2 is loot
     if (rb1?.userData?.type === "player" && rb2?.userData?.type === "loot") {

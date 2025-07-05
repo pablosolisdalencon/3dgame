@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { useInventoryStore } from '../../stores/inventoryStore';
-import type { InventoryItem } from '../../stores/inventoryStore'; // Import InventoryItem type
-import { getItemDefinition } from '../../data/itemDefinitions'; // Import item definitions helper
+import { useInventoryStore } from '../../stores/inventoryStore.js';
+// import type { InventoryItem } from '../../stores/inventoryStore.js'; // Import InventoryItem type // Removed type import
+import { getItemDefinition } from '../../data/itemDefinitions.js'; // Import item definitions helper
 import './InventoryUI.css';
 
-const InventoryUI: React.FC = () => {
+const InventoryUI = () => {
   const { items: inventoryItemsMap, useItem, getItemDefinition: getDefFromStore } = useInventoryStore((state) => ({
     items: state.items,
     useItem: state.useItem,
@@ -15,7 +15,7 @@ const InventoryUI: React.FC = () => {
   const toggleInventory = () => setIsOpen(!isOpen);
 
   useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
+    const handleKeyDown = (event) => {
       if (event.key.toLowerCase() === 'i') {
         toggleInventory();
       }
@@ -43,7 +43,7 @@ const InventoryUI: React.FC = () => {
           <p>Your inventory is empty.</p>
         ) : (
           <ul className="inventory-list">
-            {inventoryList.map((invItem: InventoryItem) => {
+            {inventoryList.map((invItem) => {
               const definition = getDefFromStore(invItem.id) || getItemDefinition(invItem.id); // Fallback just in case
               if (!definition) return null; // Should not happen if addItem works correctly
 

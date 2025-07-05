@@ -1,15 +1,15 @@
-export interface ItemDefinition {
-  id: string;
-  name: string;
-  description?: string;
-  icon?: string; // Path to icon, or identifier for an icon component
-  type: 'consumable' | 'currency' | 'equipment' | 'keyItem'; // Type of item
-  stackable: boolean;
-  maxStack?: number;
-  effects?: Record<string, any>; // e.g., { "heal": 25, "boost": "attack" }
-}
+// export interface ItemDefinition {
+//   id: string;
+//   name: string;
+//   description?: string;
+//   icon?: string; // Path to icon, or identifier for an icon component
+//   type: 'consumable' | 'currency' | 'equipment' | 'keyItem'; // Type of item
+//   stackable: boolean;
+//   maxStack?: number;
+//   effects?: Record<string, any>; // e.g., { "heal": 25, "boost": "attack" }
+// }
 
-export const ITEM_DEFINITIONS: Record<string, ItemDefinition> = {
+export const ITEM_DEFINITIONS = {
   "health_potion_small": {
     id: "health_potion_small",
     name: "Small Health Potion",
@@ -40,6 +40,6 @@ export const ITEM_DEFINITIONS: Record<string, ItemDefinition> = {
 };
 
 // Helper function to get an item definition
-export const getItemDefinition = (itemId: string): ItemDefinition | undefined => {
+export const getItemDefinition = (itemId) => {
   return ITEM_DEFINITIONS[itemId];
 };

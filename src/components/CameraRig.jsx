@@ -1,9 +1,9 @@
 import React, { useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
-import { usePlayerPositionStore } from '../stores/playerStore';
+import { usePlayerPositionStore } from '../stores/playerStore.js';
 import * as THREE from 'three';
 
-const CameraRig: React.FC = () => {
+const CameraRig = () => {
   const { camera } = useThree();
   const playerWorldPosition = usePlayerPositionStore((state) => state.position);
 

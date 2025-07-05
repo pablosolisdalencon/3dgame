@@ -1,20 +1,20 @@
 import create from 'zustand';
 import * as THREE from 'three';
 
-export interface PlayerState {
-  position: THREE.Vector3;
-  health: number;
-  maxHealth: number;
-  isAttacking: boolean;
-  isDead: boolean; // Added isDead state
-  setPosition: (position: THREE.Vector3) => void;
-  takeDamage: (amount: number) => void;
-  heal: (amount: number) => void;
-  setAttacking: (isAttacking: boolean) => void;
-  resetPlayerState: () => void; // For restarting, etc.
-}
+// export interface PlayerState {
+//   position: THREE.Vector3;
+//   health: number;
+//   maxHealth: number;
+//   isAttacking: boolean;
+//   isDead: boolean; // Added isDead state
+//   setPosition: (position: THREE.Vector3) => void;
+//   takeDamage: (amount: number) => void;
+//   heal: (amount: number) => void;
+//   setAttacking: (isAttacking: boolean) => void;
+//   resetPlayerState: () => void; // For restarting, etc.
+// }
 
-export const usePlayerStore = create<PlayerState>((set, get) => ({
+export const usePlayerStore = create((set, get) => ({
   position: new THREE.Vector3(0, 1, 0), // Initial position slightly above ground
   health: 100,
   maxHealth: 100,

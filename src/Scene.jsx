@@ -1,12 +1,12 @@
 import React, { useEffect } from 'react';
 import { Physics, useRapier, RigidBody, CuboidCollider } from '@react-three/rapier'; // Removed ActiveEvents, not used directly here
-import PlayerController from './components/PlayerController';
-import CameraRig from './components/CameraRig';
-import CollisionHandler from './components/CollisionHandler'; // Already imported, ensure it's used
-import AiController from './components/AiController';
-import { useEnemyStore } from './stores/enemyStore';
-import { useLootStore } from './stores/lootStore'; // Import loot store
-import LootDrop from './components/LootDrop'; // Import LootDrop component
+import PlayerController from './components/PlayerController.jsx';
+import CameraRig from './components/CameraRig.jsx';
+import CollisionHandler from './components/CollisionHandler.jsx'; // Already imported, ensure it's used
+import AiController from './components/AiController.jsx';
+import { useEnemyStore } from './stores/enemyStore.js';
+import { useLootStore } from './stores/lootStore.js'; // Import loot store
+import LootDrop from './components/LootDrop.jsx'; // Import LootDrop component
 import * as THREE from 'three';
 import { useThree } from '@react-three/fiber';
 
@@ -18,7 +18,7 @@ const initialEnemiesConfig = [
 ];
 
 // This component will ensure the rapier world is available in scene.userData
-const RapierWorldSetup: React.FC = () => {
+const RapierWorldSetup = () => {
   const { scene } = useThree();
   const rapier = useRapier();
   if (rapier.world) {
@@ -27,7 +27,7 @@ const RapierWorldSetup: React.FC = () => {
   return null;
 };
 
-const Ground: React.FC = () => {
+const Ground = () => {
   return (
     <RigidBody type="fixed" colliders="cuboid" friction={1.0} name="ground">
       {/* The CuboidCollider dimensions are half-extents. So a 20x1x20 box. */}
@@ -41,7 +41,7 @@ const Ground: React.FC = () => {
   );
 };
 
-const Walls: React.FC = () => {
+const Walls = () => {
     // Dimensions for the walls
     const wallThickness = 0.5;
     const wallHeight = 3;
@@ -85,7 +85,7 @@ const Walls: React.FC = () => {
     )
 }
 
-const Scene: React.FC = () => {
+const Scene = () => {
   const addEnemyToStore = useEnemyStore((state) => state.addEnemy);
   const enemies = useEnemyStore((state) => state.enemies); // Get all enemies for rendering AiControllers
   const activeLoot = useLootStore((state) => state.activeLoot); // Get active loot for rendering LootDrops

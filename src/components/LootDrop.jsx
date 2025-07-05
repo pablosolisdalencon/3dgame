@@ -1,20 +1,20 @@
 import React, { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { RigidBody, SphereCollider } from '@react-three-rapier';
-import type { RapierRigidBody } from '@react-three-rapier';
+// import type { RapierRigidBody } from '@react-three-rapier'; // Removed type import
 import * as THREE from 'three';
 
-export interface LootDropProps {
-  lootId: string; // Unique instance ID for this specific drop
-  itemId: string; // Type of item (e.g., "health_potion")
-  itemName: string; // Display name (e.g., "Health Potion")
-  position: [number, number, number];
-  onPickup?: (lootId: string) => void; // Callback when picked up (will be used by store)
-}
+// export interface LootDropProps {
+//   lootId: string; // Unique instance ID for this specific drop
+//   itemId: string; // Type of item (e.g., "health_potion")
+//   itemName: string; // Display name (e.g., "Health Potion")
+//   position: [number, number, number];
+//   onPickup?: (lootId: string) => void; // Callback when picked up (will be used by store)
+// }
 
-const LootDrop: React.FC<LootDropProps> = ({ lootId, itemId, itemName, position, onPickup }) => {
-  const rigidBodyRef = useRef<RapierRigidBody>(null);
-  const meshRef = useRef<THREE.Mesh>(null);
+const LootDrop = ({ lootId, itemId, itemName, position, onPickup }) => {
+  const rigidBodyRef = useRef(null);
+  const meshRef = useRef(null);
 
   // Simple bobbing animation
   useFrame((state) => {

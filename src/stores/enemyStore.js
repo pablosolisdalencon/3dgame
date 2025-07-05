@@ -1,30 +1,30 @@
 import create from 'zustand';
 import * as THREE from 'three';
 
-export type EnemyStatus = "IDLE" | "CHASING" | "ATTACKING" | "DYING" | "DEAD" | "INACTIVE";
+// export type EnemyStatus = "IDLE" | "CHASING" | "ATTACKING" | "DYING" | "DEAD" | "INACTIVE";
 
-export interface Enemy {
-  id: string;
-  position: THREE.Vector3;
-  health: number;
-  maxHealth: number;
-  status: EnemyStatus;
-  // targetPosition?: THREE.Vector3; // Optional: for movement logic if not directly chasing player
-  // lastAttackedPlayer?: boolean; // Optional: for AI cooldowns etc.
-}
+// export interface Enemy {
+//   id: string;
+//   position: THREE.Vector3;
+//   health: number;
+//   maxHealth: number;
+//   status: EnemyStatus;
+//   // targetPosition?: THREE.Vector3; // Optional: for movement logic if not directly chasing player
+//   // lastAttackedPlayer?: boolean; // Optional: for AI cooldowns etc.
+// }
 
-interface EnemyState {
-  enemies: Record<string, Enemy>; // Store enemies in an object for easy ID-based access
+// interface EnemyState {
+//   enemies: Record<string, Enemy>; // Store enemies in an object for easy ID-based access
 
-  addEnemy: (enemyData: Omit<Enemy, 'status'> & { initialStatus?: EnemyStatus }) => void;
-  removeEnemy: (id: string) => void;
-  updateEnemyPosition: (id: string, position: THREE.Vector3) => void;
-  updateEnemyStatus: (id: string, status: EnemyStatus) => void;
-  dealDamageToEnemy: (id: string, damage: number) => { enemyDied: boolean };
-  // resetEnemies: () => void; // Optional: for game resets
-}
+//   addEnemy: (enemyData: Omit<Enemy, 'status'> & { initialStatus?: EnemyStatus }) => void;
+//   removeEnemy: (id: string) => void;
+//   updateEnemyPosition: (id: string, position: THREE.Vector3) => void;
+//   updateEnemyStatus: (id: string, status: EnemyStatus) => void;
+//   dealDamageToEnemy: (id: string, damage: number) => { enemyDied: boolean };
+//   // resetEnemies: () => void; // Optional: for game resets
+// }
 
-export const useEnemyStore = create<EnemyState>((set, get) => ({
+export const useEnemyStore = create((set, get) => ({
   enemies: {},
 
   addEnemy: (enemyData) => {
