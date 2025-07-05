@@ -1,25 +1,25 @@
 import create from 'zustand';
-import { getItemDefinition, ItemDefinition } from '../data/itemDefinitions'; // Import item definitions
-import { usePlayerStore } from './playerStore'; // To apply effects like healing
+import { getItemDefinition } from '../data/itemDefinitions.js'; // Import item definitions
+import { usePlayerStore } from './playerStore.js'; // To apply effects like healing
 
 // Represents an item instance in the inventory
-export interface InventoryItem {
-  id: string;       // ItemDefinition ID
-  quantity: number;
-}
+// export interface InventoryItem {
+//   id: string;       // ItemDefinition ID
+//   quantity: number;
+// }
 
-interface InventoryState {
-  items: Record<string, InventoryItem>; // Store items by their ID
+// interface InventoryState {
+//   items: Record<string, InventoryItem>; // Store items by their ID
 
-  addItem: (itemId: string, amount?: number) => void;
-  removeItem: (itemId: string, amount?: number) => void;
-  useItem: (itemId: string) => boolean; // Returns true if item was used successfully
-  getItem: (itemId: string) => InventoryItem | undefined;
-  getItemDefinition: (itemId: string) => ItemDefinition | undefined; // Helper to get full definition
-  clearInventory: () => void;
-}
+//   addItem: (itemId: string, amount?: number) => void;
+//   removeItem: (itemId: string, amount?: number) => void;
+//   useItem: (itemId: string) => boolean; // Returns true if item was used successfully
+//   getItem: (itemId: string) => InventoryItem | undefined;
+//   getItemDefinition: (itemId: string) => ItemDefinition | undefined; // Helper to get full definition
+//   clearInventory: () => void;
+// }
 
-export const useInventoryStore = create<InventoryState>((set, get) => ({
+export const useInventoryStore = create((set, get) => ({
   items: {},
 
   addItem: (itemId, amount = 1) => {
@@ -92,7 +92,7 @@ export const useInventoryStore = create<InventoryState>((set, get) => ({
     // Apply effects
     if (definition.type === 'consumable' && definition.effects) {
       if (definition.effects.heal) {
-        playerHeal(definition.effects.heal as number);
+        playerHeal(definition.effects.heal);
         console.log(`Inventory: Used ${definition.name}, healed for ${definition.effects.heal}.`);
         usedSuccessfully = true;
       }
@@ -108,9 +108,9 @@ export const useInventoryStore = create<InventoryState>((set, get) => ({
     return usedSuccessfully;
   },
 
-  getItem: (itemId: string) => get().items[itemId],
+  getItem: (itemId) => get().items[itemId],
 
-  getItemDefinition: (itemId: string) => getItemDefinition(itemId),
+  getItemDefinition: (itemId) => getItemDefinition(itemId),
 
   clearInventory: () => {
     set({ items: {} });

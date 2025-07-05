@@ -1,18 +1,18 @@
 import React, { useRef, useEffect, useState, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { RigidBody, CapsuleCollider, CuboidCollider, RapierRigidBodyProps, Collider } from '@react-three-rapier'; // Added CuboidCollider, Collider
-import type { RapierRigidBody } from '@react-three-rapier';
-import { usePlayerStore } from '../stores/playerStore';
-import { useEnemyStore } from '../stores/enemyStore'; // EnemyStatus is implicitly typed via store
-import { useLootStore } from '../stores/lootStore'; // Import loot store
+import { RigidBody, CapsuleCollider, CuboidCollider, Collider } from '@react-three-rapier'; // Added CuboidCollider, Collider
+// import type { RapierRigidBody } from '@react-three-rapier'; // Removed type import
+import { usePlayerStore } from '../stores/playerStore.js';
+import { useEnemyStore } from '../stores/enemyStore.js'; // EnemyStatus is implicitly typed via store
+import { useLootStore } from '../stores/lootStore.js'; // Import loot store
 // No longer need 'Item' from inventoryStore for POTENTIAL_LOOT type, using ItemDefinition now
-import { ITEM_DEFINITIONS, ItemDefinition } from '../data/itemDefinitions'; // Import new definitions
+import { ITEM_DEFINITIONS } from '../data/itemDefinitions.js'; // Import new definitions
 import * as THREE from 'three';
 
-interface AiControllerProps {
-  id: string;
-  initialPosition: [number, number, number];
-}
+// interface AiControllerProps {
+//   id: string;
+//   initialPosition: [number, number, number];
+// }
 
 const ENEMY_MOVE_SPEED = 2.5;
 const DETECTION_RADIUS = 10; // Player detection range
@@ -25,20 +25,20 @@ const FLASH_DURATION = 150; // ms, how long the enemy flashes white when hit
 const ENEMY_ATTACK_DAMAGE = 15; // Damage dealt by enemy attack
 
 // Define potential loot drops: uses itemId from ItemDefinition and dropChance (0-1)
-interface PotentialLootEntry {
-  itemId: ItemDefinition['id']; // Use the type from ItemDefinition
-  dropChance: number;
-}
-const POTENTIAL_LOOT: PotentialLootEntry[] = [
+// interface PotentialLootEntry {
+//   itemId: ItemDefinition['id']; // Use the type from ItemDefinition
+//   dropChance: number;
+// }
+const POTENTIAL_LOOT = [
   { itemId: ITEM_DEFINITIONS.health_potion_small.id, dropChance: 0.5 },
   { itemId: ITEM_DEFINITIONS.gold_coins_small.id, dropChance: 0.7 },
   // Example: { itemId: ITEM_DEFINITIONS.rusty_key.id, dropChance: 0.1 } // If enemies could drop keys
 ];
 
-const AiController: React.FC<AiControllerProps> = ({ id, initialPosition }) => {
-  const enemyRbRef = useRef<RapierRigidBody>(null);
-  const enemyObjectRef = useRef<THREE.Group>(null); // For visual orientation
-  const enemyHitboxRef = useRef<Collider>(null); // Ref for the enemy attack hitbox
+const AiController = ({ id, initialPosition }) => {
+  const enemyRbRef = useRef(null);
+  const enemyObjectRef = useRef(null); // For visual orientation
+  const enemyHitboxRef = useRef(null); // Ref for the enemy attack hitbox
 
   const playerPosition = usePlayerStore((state) => state.position);
   const playerPosition = usePlayerStore((state) => state.position);
@@ -56,14 +56,14 @@ const AiController: React.FC<AiControllerProps> = ({ id, initialPosition }) => {
   // Local state for attack timing
   const [canAttackPlayer, setCanAttackPlayer] = useState(true);
   const [isEnemyHitboxActive, setIsEnemyHitboxActive] = useState(false);
-  const attackActionTimeoutRef = useRef<NodeJS.Timeout | null>(null); // For hitbox duration
-  const attackCooldownAIRef = useRef<NodeJS.Timeout | null>(null);
-  const deathTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const attackActionTimeoutRef = useRef(null); // For hitbox duration
+  const attackCooldownAIRef = useRef(null);
+  const deathTimeoutRef = useRef(null);
 
   // Visual feedback for damage
   const [isFlashing, setIsFlashing] = useState(false);
-  const flashTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const materialRef = useRef<THREE.MeshStandardMaterial>(null); // Ref for the enemy's material
+  const flashTimeoutRef = useRef(null);
+  const materialRef = useRef(null); // Ref for the enemy's material
   const originalColor = useRef(new THREE.Color(0xff0000)); // Default red, will be updated
 
   useEffect(() => {
@@ -100,7 +100,7 @@ const AiController: React.FC<AiControllerProps> = ({ id, initialPosition }) => {
 
   // Visibility and physics body type based on status
   const [isVisible, setIsVisible] = useState(true);
-  const [rbType, setRbType] = useState<RapierRigidBodyProps['type']>('dynamic');
+  const [rbType, setRbType] = useState('dynamic');
 
   useEffect(() => {
     if (!enemyData) {

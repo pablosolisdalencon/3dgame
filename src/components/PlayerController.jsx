@@ -1,10 +1,10 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { RigidBody, CapsuleCollider, CuboidCollider } from '@react-three-rapier'; // Added CuboidCollider
-import type { RapierRigidBody, Collider } from '@react-three-rapier';
+// import type { RapierRigidBody, Collider } from '@react-three-rapier'; // Removed type imports
 import * as THREE from 'three'; // Import THREE
-import { usePlayerControls, useControlsStore } from '../hooks/usePlayerControls'; // Import useControlsStore for resetKey
-import { usePlayerStore } from '../stores/playerStore'; // Corrected import name
+import { usePlayerControls, useControlsStore } from '../hooks/usePlayerControls.js'; // Import useControlsStore for resetKey
+import { usePlayerStore } from '../stores/playerStore.js'; // Corrected import name
 // import * as THREE from 'three'; // Already imported via @react-three/fiber or rapier types indirectly, or explicitly needed
 
 const PLAYER_MOVE_SPEED = 5; // units per second
@@ -12,10 +12,10 @@ const PLAYER_JUMP_FORCE = 7; // force units
 const ATTACK_DURATION = 300; // ms, how long the hitbox is active
 const ATTACK_COOLDOWN = 500; // ms, time before player can attack again
 
-const PlayerController: React.FC = () => {
-  const playerRigidBodyRef = useRef<RapierRigidBody>(null);
-  const playerObjectRef = useRef<THREE.Group>(null); // For visual orientation
-  const hitboxRef = useRef<Collider>(null); // Ref for the hitbox collider
+const PlayerController = () => {
+  const playerRigidBodyRef = useRef(null);
+  const playerObjectRef = useRef(null); // For visual orientation
+  const hitboxRef = useRef(null); // Ref for the hitbox collider
   const { camera } = useThree(); // Get the camera for potential camera-relative controls
 
   // Get controls state from the hook that returns the state object
@@ -29,8 +29,8 @@ const PlayerController: React.FC = () => {
 
   // State for managing hitbox activation and attack cooldown
   const [isHitboxActive, setIsHitboxActive] = useState(false);
-  const attackTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const attackCooldownTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const attackTimeoutRef = useRef(null);
+  const attackCooldownTimeoutRef = useRef(null);
   const [canAttack, setCanAttack] = useState(true);
 
   // Temporary vectors for calculations to avoid allocations in loop

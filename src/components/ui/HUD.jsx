@@ -1,8 +1,8 @@
 import React from 'react';
-import { usePlayerStore } from '../../stores/playerStore';
+import { usePlayerStore } from '../../stores/playerStore.js';
 import './HUD.css'; // We'll create this CSS file next
 
-const HUD: React.FC = () => {
+const HUD = () => {
   const { health, maxHealth, isDead } = usePlayerStore((state) => ({
     health: state.health,
     maxHealth: state.maxHealth,

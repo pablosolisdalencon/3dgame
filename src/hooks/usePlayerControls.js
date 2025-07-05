@@ -2,19 +2,19 @@ import { useEffect } from 'react';
 import create from 'zustand';
 
 // Extend ControlsState to include attack
-interface ControlsState {
-  forward: boolean;
-  backward: boolean;
-  left: boolean;
-  right: boolean;
-  jump: boolean;
-  attack: boolean; // Added attack state
-  reset: () => void;
-  // Method to reset a specific control, useful for momentary actions like attack
-  resetKey: (key: keyof Omit<ControlsState, 'reset' | 'resetKey'>) => void;
-}
+// interface ControlsState {
+//   forward: boolean;
+//   backward: boolean;
+//   left: boolean;
+//   right: boolean;
+//   jump: boolean;
+//   attack: boolean; // Added attack state
+//   reset: () => void;
+//   // Method to reset a specific control, useful for momentary actions like attack
+//   resetKey: (key: keyof Omit<ControlsState, 'reset' | 'resetKey'>) => void;
+// }
 
-export const useControlsStore = create<ControlsState>()((set) => ({
+export const useControlsStore = create((set) => ({
   forward: false,
   backward: false,
   left: false,
@@ -26,7 +26,7 @@ export const useControlsStore = create<ControlsState>()((set) => ({
 }));
 
 // Update KeyMap type to include 'attack'
-const keyMap: { [key: string]: keyof Omit<ControlsState, 'reset' | 'resetKey'> } = {
+const keyMap = {
   KeyW: 'forward',
   ArrowUp: 'forward',
   KeyS: 'backward',
@@ -41,7 +41,7 @@ const keyMap: { [key: string]: keyof Omit<ControlsState, 'reset' | 'resetKey'> }
 };
 
 // Gamepad button mapping (example: X button on Xbox/PS controller)
-const gamepadButtonMap: { [buttonIndex: number]: keyof Omit<ControlsState, 'reset' | 'resetKey'> } = {
+const gamepadButtonMap = {
   2: 'attack', // Typically X button (Xbox) or Square (PlayStation)
   0: 'jump',   // Typically A button (Xbox) or X (PlayStation)
   // Movement buttons (d-pad)
@@ -66,7 +66,7 @@ export const usePlayerControls = () => {
 
 
   useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
+    const handleKeyDown = (event) => {
       const action = keyMap[event.code];
       if (action) {
         // For 'attack', we want it to be a momentary press, then reset.
@@ -81,7 +81,7 @@ export const usePlayerControls = () => {
       }
     };
 
-    const handleKeyUp = (event: KeyboardEvent) => {
+    const handleKeyUp = (event) => {
       const action = keyMap[event.code];
       if (action) {
         if (action !== 'attack') { // Attack is reset by PlayerController after duration
@@ -93,8 +93,8 @@ export const usePlayerControls = () => {
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
 
-    let gamepadIndex: number | null = null;
-    const previousButtonStates: { [key: string]: boolean } = {};
+    let gamepadIndex = null;
+    const previousButtonStates = {};
 
     const checkGamepad = () => {
       const gamepads = navigator.getGamepads();
@@ -111,7 +111,7 @@ export const usePlayerControls = () => {
       }
     };
 
-    const handleGamepadConnected = (e: GamepadEvent) => {
+    const handleGamepadConnected = (e) => {
       gamepadIndex = e.gamepad.index;
       console.log("Gamepad connected at index %d: %s. %d buttons, %d axes.",
                   e.gamepad.index, e.gamepad.id,
@@ -136,7 +136,7 @@ export const usePlayerControls = () => {
       if (gamepadIndex !== null) {
         const gamepad = navigator.getGamepads()[gamepadIndex];
         if (gamepad) {
-          const newStates: Partial<ControlsState> = {};
+          const newStates = {};
 
           // Handle axes for movement
           newStates.forward = gamepad.axes[1] < -0.5;
